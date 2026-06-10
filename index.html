@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Notes — Private</title>
+<meta name="description" content="Private, local-first notes app (Notesnook-style). All data stays on this device.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#008837">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Notes">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+/* ============================================================
+   THEME TOKENS — Notesnook-style palette
+   ============================================================ */
+:root{
+  --accent:#008837;
+  --accent-soft:rgba(0,136,55,.12);
+  --bg:#ffffff;
+  --bg-nav:#f7f7f7;
+  --bg-list:#fbfbfb;
+  --bg-hover:#f0f0f0;
+  --bg-active:#e8e8e8;
+  --border:#e5e5e5;
+  --text:#303030;
+  --text-2:#6f6f6f;
+  --text-3:#a1a1a1;
+  --danger:#f44336;
+  --shadow:0 4px 24px rgba(0,0,0,.12);
+  --radius:8px;
+}
+[data-theme="dark"]{
+  --accent:#4dba6f;
+  --accent-soft:rgba(77,186,111,.14);
+  --bg:#1c1c1c;
+  --bg-nav:#161616;
+  --bg-list:#191919;
+  --bg-hover:#262626;
+  --bg-active:#2d2d2d;
+  --border:#2b2b2b;
+  --text:#d3d3d3;
+  --text-2:#9a9a9a;
+  --text-3:#666666;
+  --shadow:0 4px 24px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:"Open Sans","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px;color:var(--text);background:var(--bg);
+  overflow:hidden;-webkit-tap-highlight-color:transparent;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,textarea,select{font:inherit;color:inherit}
+::selection{background:var(--accent-soft)}
+
+/* ============================================================
+   APP LAYOUT — three panes (nav / list / editor)
+   ============================================================ */
+#app{display:flex;height:100%;height:100dvh}
+#nav{width:220px;min-width:220px;background:var(--bg-nav);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom)}
+#list{width:320px;min-width:280px;background:var(--bg-list);border-right:1px solid var(--border);display:flex;flex-direction:column}
+#editor{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+
+/* ---- Nav pane ---- */
+.nav-brand{display:flex;align-items:center;gap:10px;padding:16px 16px 10px;padding-top:calc(16px + env(safe-area-inset-top))}
+.nav-brand .logo{width:28px;height:28px;border-radius:7px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px}
+.nav-brand b{font-size:15px}
+.nav-section{padding:6px 8px}
+.nav-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);padding:10px 10px 4px;display:flex;align-items:center;justify-content:space-between}
+.nav-label button{color:var(--text-3);font-size:16px;line-height:1;padding:0 4px;border-radius:4px}
+.nav-label button:hover{color:var(--accent)}
+.nav-item{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:6px;color:var(--text-2);text-align:left;font-size:13.5px}
+.nav-item svg{width:17px;height:17px;flex:none}
+.nav-item:hover{background:var(--bg-hover)}
+.nav-item.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.nav-item .count{margin-left:auto;font-size:11px;color:var(--text-3)}
+.nav-item .dot{width:12px;height:12px;border-radius:50%;flex:none}
+.nav-foot{margin-top:auto;padding:8px;border-top:1px solid var(--border)}
+
+/* ---- List pane ---- */
+.list-head{padding:12px 14px 8px;padding-top:calc(12px + env(safe-area-inset-top))}
+.list-title-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.list-title-row h2{font-size:17px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.icon-btn{width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--text-2);flex:none}
+.icon-btn:hover{background:var(--bg-hover);color:var(--text)}
+.icon-btn svg{width:18px;height:18px}
+.search-box{display:flex;align-items:center;gap:8px;background:var(--bg-hover);border-radius:6px;padding:7px 10px}
+.search-box input{flex:1;border:none;background:none;outline:none;font-size:13px;min-width:0}
+.search-box svg{width:15px;height:15px;color:var(--text-3);flex:none}
+#noteList{flex:1;overflow-y:auto;padding:4px 8px 90px}
+.group-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);padding:10px 8px 4px;font-weight:600}
+.note-card{padding:10px;border-radius:var(--radius);cursor:pointer;border-left:3px solid transparent;margin-bottom:2px}
+.note-card:hover{background:var(--bg-hover)}
+.note-card.active{background:var(--bg-active)}
+.note-card h3{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px}
+.note-card h3 .pin{color:var(--accent);font-size:11px}
+.note-card p{font-size:12.5px;color:var(--text-2);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.note-card .meta{font-size:11px;color:var(--text-3);margin-top:5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.note-card .meta .fav{color:#f5a623}
+.tag-chip{background:var(--accent-soft);color:var(--accent);border-radius:4px;padding:1px 6px;font-size:10.5px}
+.empty{padding:40px 20px;text-align:center;color:var(--text-3);font-size:13px;line-height:1.6}
+.fab{position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));right:20px;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;z-index:5}
+.fab svg{width:24px;height:24px}
+#listWrap{position:relative;display:flex;flex-direction:column;flex:1;min-height:0}
+
+/* ---- Editor pane ---- */
+.ed-top{display:flex;align-items:center;gap:4px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top));border-bottom:1px solid var(--border);flex-wrap:wrap}
+.ed-top .spacer{flex:1}
+.icon-btn.on{color:var(--accent)}
+#edTitle{border:none;outline:none;background:none;font-size:24px;font-weight:700;width:100%;padding:14px 20px 4px}
+#edTitle::placeholder{color:var(--text-3)}
+.ed-meta{padding:0 20px 8px;font-size:11.5px;color:var(--text-3);display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.toolbar{display:flex;gap:2px;padding:4px 14px;border-bottom:1px solid var(--border);overflow-x:auto;flex:none}
+.toolbar button{padding:6px 9px;border-radius:5px;font-size:13px;color:var(--text-2);white-space:nowrap;flex:none}
+.toolbar button:hover{background:var(--bg-hover);color:var(--text)}
+.toolbar .sep{width:1px;background:var(--border);margin:4px 4px;flex:none}
+#edBody{flex:1;display:flex;min-height:0}
+#edText{flex:1;border:none;outline:none;background:none;resize:none;padding:14px 20px 40px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;line-height:1.7;-webkit-overflow-scrolling:touch}
+#edPreview{flex:1;overflow-y:auto;padding:14px 20px 40px;display:none;line-height:1.7;font-size:15px}
+#edPreview h1,#edPreview h2,#edPreview h3{margin:14px 0 6px}
+#edPreview p{margin:8px 0}
+#edPreview ul,#edPreview ol{margin:8px 0 8px 22px}
+#edPreview code{background:var(--bg-hover);padding:1px 5px;border-radius:4px;font-size:.9em;font-family:ui-monospace,Menlo,Consolas,monospace}
+#edPreview pre{background:var(--bg-hover);padding:12px;border-radius:8px;overflow-x:auto;margin:10px 0}
+#edPreview pre code{background:none;padding:0}
+#edPreview blockquote{border-left:3px solid var(--accent);padding:2px 12px;color:var(--text-2);margin:10px 0}
+#edPreview a{color:var(--accent)}
+#edPreview img{max-width:100%;border-radius:8px}
+#edPreview hr{border:none;border-top:1px solid var(--border);margin:16px 0}
+#edPreview input[type=checkbox]{accent-color:var(--accent);margin-right:6px}
+.ed-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-3);gap:10px}
+.ed-empty svg{width:54px;height:54px;opacity:.4}
+#savedBadge{font-size:11px;color:var(--text-3);transition:opacity .4s;opacity:0}
+#savedBadge.show{opacity:1}
+
+/* ---- Properties drawer ---- */
+#props{position:fixed;top:0;right:-320px;width:300px;max-width:90vw;height:100%;background:var(--bg-nav);border-left:1px solid var(--border);z-index:40;transition:right .25s;padding:16px;padding-top:calc(16px + env(safe-area-inset-top));overflow-y:auto}
+#props.open{right:0;box-shadow:var(--shadow)}
+#props h3{font-size:14px;margin-bottom:14px}
+.prop-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;font-size:13.5px;color:var(--text-2)}
+.prop-row button.toggle{width:38px;height:22px;border-radius:11px;background:var(--bg-active);position:relative;transition:background .2s}
+.prop-row button.toggle::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.prop-row button.toggle.on{background:var(--accent)}
+.prop-row button.toggle.on::after{left:19px}
+.color-row{display:flex;gap:8px;padding:8px 0;flex-wrap:wrap}
+.color-row button{width:26px;height:26px;border-radius:50%;border:2px solid transparent}
+.color-row button.sel{border-color:var(--text)}
+.prop-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin:14px 0 4px}
+#props select,#props input[type=text]{width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);outline:none;font-size:13px}
+.danger-btn{color:var(--danger);padding:9px 0;font-size:13.5px;text-align:left;width:100%}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:30;display:none}
+.scrim.show{display:block}
+
+/* ---- Modal (settings / import) ---- */
+.modal{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);padding:16px}
+.modal.show{display:flex}
+.modal-box{background:var(--bg);border-radius:12px;width:480px;max-width:100%;max-height:85vh;overflow-y:auto;padding:22px;box-shadow:var(--shadow)}
+.modal-box h2{font-size:17px;margin-bottom:6px}
+.modal-box p.sub{font-size:12.5px;color:var(--text-2);margin-bottom:16px;line-height:1.5}
+.modal-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border);font-size:13.5px;gap:10px}
+.modal-row:last-child{border-bottom:none}
+.modal-row .hint{font-size:11.5px;color:var(--text-3);margin-top:2px}
+.btn{background:var(--accent);color:#fff;border-radius:6px;padding:8px 14px;font-size:13px;font-weight:600;flex:none}
+.btn.ghost{background:var(--bg-hover);color:var(--text)}
+.btn:active{opacity:.85}
+#importLog{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--bg-hover);border-radius:8px;padding:10px;margin-top:12px;max-height:180px;overflow-y:auto;white-space:pre-wrap;display:none}
+.close-x{float:right;color:var(--text-3);font-size:20px;line-height:1}
+
+/* ---- Toast ---- */
+#toast{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s;z-index:60;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ============================================================
+   MOBILE — single pane navigation (≤768px)
+   ============================================================ */
+#backBtn,#menuBtn{display:none}
+@media (max-width:768px){
+  #nav{position:fixed;left:-260px;top:0;height:100%;z-index:45;transition:left .25s;width:250px;box-shadow:none}
+  #nav.open{left:0;box-shadow:var(--shadow)}
+  #list{width:100%;min-width:0;border-right:none}
+  #editor{position:fixed;inset:0;z-index:20;background:var(--bg);transform:translateX(100%);transition:transform .25s}
+  #editor.open{transform:translateX(0)}
+  #menuBtn{display:flex}
+  #backBtn{display:flex}
+  #edTitle{font-size:20px}
+}
+@media (min-width:769px){
+  .scrim.nav-only{display:none !important}
+}
+</style>
+</head>
+<body data-theme="light">
+<div id="app">
+
+  <!-- ================= NAV PANE ================= -->
+  <nav id="nav">
+    <div class="nav-brand"><div class="logo">N</div><b>Notes</b></div>
+    <div class="nav-section" id="navMain"></div>
+    <div class="nav-section">
+      <div class="nav-label">Notebooks <button id="addNotebookBtn" title="Add notebook">+</button></div>
+      <div id="navNotebooks"></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Tags</div>
+      <div id="navTags"></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Colors</div>
+      <div id="navColors"></div>
+    </div>
+    <div class="nav-foot">
+      <button class="nav-item" id="settingsBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </button>
+    </div>
+  </nav>
+
+  <!-- ================= LIST PANE ================= -->
+  <section id="list">
+    <div class="list-head">
+      <div class="list-title-row">
+        <button class="icon-btn" id="menuBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+        <h2 id="listTitle">Notes</h2>
+        <button class="icon-btn" id="emptyTrashBtn" style="display:none" title="Empty trash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
+      </div>
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="searchInput" type="search" placeholder="Search notes" autocomplete="off">
+      </div>
+    </div>
+    <div id="listWrap">
+      <div id="noteList"></div>
+      <button class="fab" id="newNoteBtn" title="New note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+    </div>
+  </section>
+
+  <!-- ================= EDITOR PANE ================= -->
+  <section id="editor">
+    <div class="ed-top">
+      <button class="icon-btn" id="backBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <span id="savedBadge">Saved</span>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="previewBtn" title="Toggle preview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      <button class="icon-btn" id="exportNoteBtn" title="Export note (.md)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+      <button class="icon-btn" id="propsBtn" title="Note properties"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="5" r="1.5" fill="currentColor"/><circle cx="12" cy="19" r="1.5" fill="currentColor"/></svg></button>
+    </div>
+    <div id="edContent" style="display:none;flex:1;flex-direction:column;min-height:0">
+      <input id="edTitle" placeholder="Note title" autocomplete="off">
+      <div class="ed-meta"><span id="edDate"></span><span id="edWords"></span><span id="edNotebook"></span></div>
+      <div class="toolbar">
+        <button data-md="bold" title="Bold"><b>B</b></button>
+        <button data-md="italic" title="Italic"><i>I</i></button>
+        <button data-md="strike" title="Strikethrough"><s>S</s></button>
+        <div class="sep"></div>
+        <button data-md="h1">H1</button>
+        <button data-md="h2">H2</button>
+        <button data-md="h3">H3</button>
+        <div class="sep"></div>
+        <button data-md="ul" title="Bullet list">• List</button>
+        <button data-md="ol" title="Numbered list">1. List</button>
+        <button data-md="task" title="Checklist">☑ Task</button>
+        <div class="sep"></div>
+        <button data-md="code" title="Inline code">&lt;/&gt;</button>
+        <button data-md="codeblock" title="Code block">{ }</button>
+        <button data-md="quote" title="Quote">❝</button>
+        <button data-md="link" title="Link">🔗</button>
+      </div>
+      <div id="edBody">
+        <textarea id="edText" placeholder="Start writing…" spellcheck="true"></textarea>
+        <div id="edPreview"></div>
+      </div>
+    </div>
+    <div id="edEmpty" class="ed-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span>Select a note or create a new one</span>
+    </div>
+  </section>
+</div>
+
+<!-- ================= PROPERTIES DRAWER ================= -->
+<div class="scrim" id="propsScrim"></div>
+<aside id="props">
+  <h3>Properties <button class="close-x" id="propsClose">×</button></h3>
+  <div class="prop-row">Pin <button class="toggle" id="pPin"></button></div>
+  <div class="prop-row">Favorite <button class="toggle" id="pFav"></button></div>
+  <div class="prop-label">Color</div>
+  <div class="color-row" id="pColors"></div>
+  <div class="prop-label">Notebook</div>
+  <select id="pNotebook"></select>
+  <div class="prop-label">Tags (comma separated)</div>
+  <input type="text" id="pTags" placeholder="work, ideas">
+  <div class="prop-label">Danger zone</div>
+  <button class="danger-btn" id="pTrash">Move to trash</button>
+  <button class="danger-btn" id="pRestore" style="display:none">Restore from trash</button>
+  <button class="danger-btn" id="pDeleteForever" style="display:none">Delete forever</button>
+</aside>
+
+<!-- ================= SETTINGS MODAL ================= -->
+<div class="modal" id="settingsModal">
+  <div class="modal-box">
+    <h2>Settings <button class="close-x" data-close="settingsModal">×</button></h2>
+    <p class="sub">Everything is stored locally on this device (IndexedDB). Nothing is uploaded anywhere.</p>
+    <div class="modal-row">
+      <div>Dark theme</div>
+      <button class="toggle" id="themeToggle" style="width:38px;height:22px;border-radius:11px;background:var(--bg-active);position:relative"></button>
+    </div>
+    <div class="modal-row">
+      <div>Import from Notesnook<div class="hint">.zip (Markdown export), .nnbackup / .nnbackupz, or plain .md files</div></div>
+      <button class="btn" id="importBtn">Import</button>
+    </div>
+    <div class="modal-row">
+      <div>Back up this app's data<div class="hint">Downloads a JSON file — use it to move notes to another device</div></div>
+      <button class="btn ghost" id="backupBtn">Export</button>
+    </div>
+    <div class="modal-row">
+      <div>Restore a backup<div class="hint">Merges notes from a backup JSON made by this app</div></div>
+      <button class="btn ghost" id="restoreBtn">Restore</button>
+    </div>
+    <div id="importLog"></div>
+    <input type="file" id="importFile" accept=".zip,.nnbackup,.nnbackupz,.md,.txt,.json" multiple style="display:none">
+    <input type="file" id="restoreFile" accept=".json" style="display:none">
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   Private Notes — single-file local-first notes app
+   Structure:
+     1. DB        — IndexedDB wrapper
+     2. State     — in-memory state + helpers
+     3. Render    — nav / list / editor rendering
+     4. Editor    — autosave, toolbar, preview
+     5. Markdown  — tiny renderer (safe, escapes HTML)
+     6. Import    — Notesnook ZIP / .nnbackup / .md
+     7. Backup    — export & restore JSON
+     8. Boot
+   ============================================================ */
+
+/* ---------------- 1. DB ---------------- */
+const DB = (() => {
+  let db;
+  const open = () => new Promise((res, rej) => {
+    const r = indexedDB.open("private-notes", 1);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      if (!d.objectStoreNames.contains("notes")) d.createObjectStore("notes", { keyPath: "id" });
+      if (!d.objectStoreNames.contains("notebooks")) d.createObjectStore("notebooks", { keyPath: "id" });
+      if (!d.objectStoreNames.contains("meta")) d.createObjectStore("meta", { keyPath: "key" });
+    };
+    r.onsuccess = () => { db = r.result; res(); };
+    r.onerror = () => rej(r.error);
+  });
+  const tx = (store, mode, fn) => new Promise((res, rej) => {
+    const t = db.transaction(store, mode);
+    const s = t.objectStore(store);
+    const out = fn(s);
+    t.oncomplete = () => res(out && out.result !== undefined ? out.result : undefined);
+    t.onerror = () => rej(t.error);
+  });
+  const getAll = (store) => new Promise((res, rej) => {
+    const r = db.transaction(store).objectStore(store).getAll();
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  return {
+    open, getAll,
+    put: (store, val) => tx(store, "readwrite", s => s.put(val)),
+    del: (store, key) => tx(store, "readwrite", s => s.delete(key)),
+    putMany: (store, vals) => tx(store, "readwrite", s => { vals.forEach(v => s.put(v)); }),
+    getMeta: (key) => new Promise(res => {
+      const r = db.transaction("meta").objectStore("meta").get(key);
+      r.onsuccess = () => res(r.result ? r.result.value : null); r.onerror = () => res(null);
+    }),
+    setMeta: (key, value) => tx("meta", "readwrite", s => s.put({ key, value })),
+  };
+})();
+
+/* ---------------- 2. State ---------------- */
+const COLORS = [
+  { id: "red", v: "#f44336" }, { id: "orange", v: "#ff9800" }, { id: "yellow", v: "#ffd600" },
+  { id: "green", v: "#4caf50" }, { id: "blue", v: "#2196f3" }, { id: "purple", v: "#9c27b0" }, { id: "gray", v: "#9e9e9e" },
+];
+const S = {
+  notes: [], notebooks: [],
+  view: { type: "all" },          // all | favorites | trash | notebook | tag | color
+  activeId: null, search: "", preview: false,
+};
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
+const now = () => Date.now();
+const $ = (sel) => document.querySelector(sel);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const activeNote = () => S.notes.find(n => n.id === S.activeId) || null;
+
+function newNote(partial = {}) {
+  return Object.assign({
+    id: uid(), title: "", content: "", notebookId: null, tags: [], color: null,
+    pinned: false, favorite: false, trashed: false,
+    createdAt: now(), updatedAt: now(),
+  }, partial);
+}
+async function saveNote(n) { n.updatedAt = now(); await DB.put("notes", n); }
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2200);
+}
+const fmtDate = (ts) => new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+  + " " + new Date(ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+
+/* ---------------- 3. Render ---------------- */
+const ICONS = {
+  note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.83z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
+};
+function renderNav() {
+  const live = S.notes.filter(n => !n.trashed);
+  const counts = {
+    all: live.length,
+    favorites: live.filter(n => n.favorite).length,
+    trash: S.notes.filter(n => n.trashed).length,
+  };
+  const item = (type, label, icon, count, extra = {}) => {
+    const active = S.view.type === type &&
+      (type !== "notebook" || S.view.id === extra.id) &&
+      (type !== "tag" || S.view.tag === extra.tag) &&
+      (type !== "color" || S.view.color === extra.color);
+    return `<button class="nav-item ${active ? "active" : ""}" data-view='${esc(JSON.stringify({ type, ...extra }))}'>
+      ${icon}${esc(label)}<span class="count">${count ?? ""}</span></button>`;
+  };
+  $("#navMain").innerHTML =
+    item("all", "Notes", ICONS.note, counts.all) +
+    item("favorites", "Favorites", ICONS.star, counts.favorites) +
+    item("trash", "Trash", ICONS.trash, counts.trash);
+
+  $("#navNotebooks").innerHTML = S.notebooks
+    .sort((a, b) => a.title.localeCompare(b.title))
+    .map(nb => item("notebook", nb.title, ICONS.book, live.filter(n => n.notebookId === nb.id).length, { id: nb.id }))
+    .join("") || '<div class="empty" style="padding:6px 10px;text-align:left">No notebooks yet</div>';
+
+  const tagSet = new Map();
+  live.forEach(n => (n.tags || []).forEach(t => tagSet.set(t, (tagSet.get(t) || 0) + 1)));
+  $("#navTags").innerHTML = [...tagSet.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([t, c]) => item("tag", "#" + t, ICONS.tag, c, { tag: t }))
+    .join("") || '<div class="empty" style="padding:6px 10px;text-align:left">No tags yet</div>';
+
+  $("#navColors").innerHTML = COLORS
+    .map(c => {
+      const count = live.filter(n => n.color === c.id).length;
+      if (!count) return "";
+      return item("color", c.id[0].toUpperCase() + c.id.slice(1), `<span class="dot" style="background:${c.v}"></span>`, count, { color: c.id });
+    }).join("") || '<div class="empty" style="padding:6px 10px;text-align:left">No colored notes</div>';
+
+  document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => {
+    S.view = JSON.parse(b.dataset.view);
+    S.search = ""; $("#searchInput").value = "";
+    closeNav(); renderAll();
+  });
+}
+function visibleNotes() {
+  let list = S.notes;
+  const v = S.view;
+  if (v.type === "trash") list = list.filter(n => n.trashed);
+  else {
+    list = list.filter(n => !n.trashed);
+    if (v.type === "favorites") list = list.filter(n => n.favorite);
+    if (v.type === "notebook") list = list.filter(n => n.notebookId === v.id);
+    if (v.type === "tag") list = list.filter(n => (n.tags || []).includes(v.tag));
+    if (v.type === "color") list = list.filter(n => n.color === v.color);
+  }
+  if (S.search) {
+    const q = S.search.toLowerCase();
+    list = list.filter(n => (n.title || "").toLowerCase().includes(q) || (n.content || "").toLowerCase().includes(q));
+  }
+  return list.sort((a, b) => (b.pinned - a.pinned) || (b.updatedAt - a.updatedAt));
+}
+function renderList() {
+  const v = S.view;
+  let title = "Notes";
+  if (v.type === "favorites") title = "Favorites";
+  if (v.type === "trash") title = "Trash";
+  if (v.type === "notebook") title = (S.notebooks.find(n => n.id === v.id) || {}).title || "Notebook";
+  if (v.type === "tag") title = "#" + v.tag;
+  if (v.type === "color") title = v.color[0].toUpperCase() + v.color.slice(1) + " notes";
+  $("#listTitle").textContent = title;
+  $("#emptyTrashBtn").style.display = v.type === "trash" ? "" : "none";
+
+  const list = visibleNotes();
+  if (!list.length) {
+    $("#noteList").innerHTML = `<div class="empty">${v.type === "trash" ? "Trash is empty." : "No notes here yet.<br>Tap + to create one."}</div>`;
+    return;
+  }
+  const pinned = list.filter(n => n.pinned && !n.trashed);
+  const rest = list.filter(n => !pinned.includes(n));
+  const card = (n) => {
+    const color = n.color ? COLORS.find(c => c.id === n.color) : null;
+    const preview = (n.content || "").replace(/[#>*`\-\[\]]/g, "").trim().slice(0, 160);
+    return `<div class="note-card ${n.id === S.activeId ? "active" : ""}" data-id="${n.id}" style="${color ? `border-left-color:${color.v}` : ""}">
+      <h3>${n.pinned ? '<span class="pin">📌</span>' : ""}${esc(n.title) || "<i style='color:var(--text-3)'>Untitled</i>"}</h3>
+      ${preview ? `<p>${esc(preview)}</p>` : ""}
+      <div class="meta">
+        ${n.favorite ? '<span class="fav">★</span>' : ""}
+        <span>${new Date(n.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
+        ${(n.tags || []).slice(0, 3).map(t => `<span class="tag-chip">#${esc(t)}</span>`).join("")}
+      </div></div>`;
+  };
+  $("#noteList").innerHTML =
+    (pinned.length ? `<div class="group-label">Pinned</div>` + pinned.map(card).join("") : "") +
+    (pinned.length && rest.length ? `<div class="group-label">Notes</div>` : "") +
+    rest.map(card).join("");
+  document.querySelectorAll(".note-card").forEach(c => c.onclick = () => openNote(c.dataset.id));
+}
+function renderEditor() {
+  const n = activeNote();
+  if (!n) {
+    $("#edContent").style.display = "none";
+    $("#edEmpty").style.display = "flex";
+    return;
+  }
+  $("#edContent").style.display = "flex";
+  $("#edEmpty").style.display = "none";
+  if ($("#edTitle").value !== n.title) $("#edTitle").value = n.title;
+  if ($("#edText").value !== n.content) $("#edText").value = n.content;
+  $("#edDate").textContent = fmtDate(n.updatedAt);
+  const words = (n.content.trim().match(/\S+/g) || []).length;
+  $("#edWords").textContent = words + " words";
+  const nb = S.notebooks.find(b => b.id === n.notebookId);
+  $("#edNotebook").textContent = nb ? "📓 " + nb.title : "";
+  if (S.preview) renderPreview();
+}
+function renderAll() { renderNav(); renderList(); renderEditor(); }
+
+function openNote(id) {
+  S.activeId = id;
+  renderList(); renderEditor(); renderProps();
+  $("#editor").classList.add("open");
+  if (!matchMedia("(max-width:768px)").matches) $("#edText").focus({ preventScroll: true });
+}
+function closeEditor() { $("#editor").classList.remove("open"); }
+function closeNav() { $("#nav").classList.remove("open"); $("#navScrim")?.classList.remove("show"); }
+
+/* ---------------- 4. Editor ---------------- */
+let saveTimer;
+function scheduleSave() {
+  const n = activeNote(); if (!n) return;
+  n.title = $("#edTitle").value;
+  n.content = $("#edText").value;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    await saveNote(n);
+    $("#savedBadge").classList.add("show");
+    setTimeout(() => $("#savedBadge").classList.remove("show"), 1200);
+    renderNav(); renderList();
+    $("#edDate").textContent = fmtDate(n.updatedAt);
+    const words = (n.content.trim().match(/\S+/g) || []).length;
+    $("#edWords").textContent = words + " words";
+  }, 500);
+}
+$("#edTitle").addEventListener("input", scheduleSave);
+$("#edText").addEventListener("input", () => { scheduleSave(); if (S.preview) renderPreview(); });
+
+function wrapSelection(before, after = before, placeholder = "text") {
+  const ta = $("#edText");
+  const { selectionStart: s, selectionEnd: e, value: v } = ta;
+  const sel = v.slice(s, e) || placeholder;
+  ta.value = v.slice(0, s) + before + sel + after + v.slice(e);
+  ta.focus();
+  ta.setSelectionRange(s + before.length, s + before.length + sel.length);
+  scheduleSave(); if (S.preview) renderPreview();
+}
+function prefixLines(prefix, numbered = false) {
+  const ta = $("#edText");
+  let { selectionStart: s, selectionEnd: e, value: v } = ta;
+  const ls = v.lastIndexOf("\n", s - 1) + 1;
+  const le = (v.indexOf("\n", e) + 1 || v.length + 1) - 1;
+  const block = v.slice(ls, le).split("\n")
+    .map((l, i) => (numbered ? (i + 1) + ". " : prefix) + l).join("\n");
+  ta.value = v.slice(0, ls) + block + v.slice(le);
+  ta.focus(); scheduleSave(); if (S.preview) renderPreview();
+}
+document.querySelectorAll(".toolbar [data-md]").forEach(b => b.onclick = () => {
+  const k = b.dataset.md;
+  if (k === "bold") wrapSelection("**");
+  if (k === "italic") wrapSelection("*");
+  if (k === "strike") wrapSelection("~~");
+  if (k === "code") wrapSelection("`");
+  if (k === "codeblock") wrapSelection("\n```\n", "\n```\n", "code");
+  if (k === "quote") prefixLines("> ");
+  if (k === "h1") prefixLines("# ");
+  if (k === "h2") prefixLines("## ");
+  if (k === "h3") prefixLines("### ");
+  if (k === "ul") prefixLines("- ");
+  if (k === "ol") prefixLines("", true);
+  if (k === "task") prefixLines("- [ ] ");
+  if (k === "link") wrapSelection("[", "](https://)", "link text");
+});
+$("#previewBtn").onclick = () => {
+  S.preview = !S.preview;
+  $("#previewBtn").classList.toggle("on", S.preview);
+  $("#edPreview").style.display = S.preview ? "block" : "none";
+  $("#edText").style.display = S.preview ? "none" : "block";
+  if (S.preview) renderPreview();
+};
+function renderPreview() { $("#edPreview").innerHTML = md2html($("#edText").value); }
+
+$("#exportNoteBtn").onclick = () => {
+  const n = activeNote(); if (!n) return;
+  download((n.title || "untitled") + ".md", "---\ntitle: " + (n.title || "Untitled") + "\n---\n\n" + n.content);
+};
+function download(name, content, type = "text/plain") {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = name.replace(/[\/\\:*?"<>|]/g, "_");
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* ---------------- 5. Markdown renderer (safe) ---------------- */
+function inlineMd(s) {
+  s = esc(s);
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+  s = s.replace(/\*([^*]+)\*/g, "<i>$1</i>");
+  s = s.replace(/~~([^~]+)~~/g, "<s>$1</s>");
+  s = s.replace(/!\[([^\]]*)\]\((https?:[^)\s]+)\)/g, '<img src="$2" alt="$1">');
+  s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  return s;
+}
+function md2html(src) {
+  const lines = (src || "").split("\n");
+  let html = "", inCode = false, codeBuf = [], listType = null;
+  const closeList = () => { if (listType) { html += `</${listType}>`; listType = null; } };
+  for (const line of lines) {
+    if (line.trim().startsWith("```")) {
+      if (inCode) { html += `<pre><code>${esc(codeBuf.join("\n"))}</code></pre>`; codeBuf = []; inCode = false; }
+      else { closeList(); inCode = true; }
+      continue;
+    }
+    if (inCode) { codeBuf.push(line); continue; }
+    const h = line.match(/^(#{1,6})\s+(.*)/);
+    if (h) { closeList(); html += `<h${h[1].length}>${inlineMd(h[2])}</h${h[1].length}>`; continue; }
+    if (/^(\*{3,}|-{3,}|_{3,})\s*$/.test(line)) { closeList(); html += "<hr>"; continue; }
+    const task = line.match(/^\s*[-*]\s+\[([ xX])\]\s+(.*)/);
+    if (task) {
+      if (listType !== "ul") { closeList(); html += "<ul>"; listType = "ul"; }
+      html += `<li style="list-style:none;margin-left:-18px"><input type="checkbox" disabled ${task[1] !== " " ? "checked" : ""}>${inlineMd(task[2])}</li>`;
+      continue;
+    }
+    const ul = line.match(/^\s*[-*+]\s+(.*)/);
+    if (ul) { if (listType !== "ul") { closeList(); html += "<ul>"; listType = "ul"; } html += `<li>${inlineMd(ul[1])}</li>`; continue; }
+    const ol = line.match(/^\s*\d+[.)]\s+(.*)/);
+    if (ol) { if (listType !== "ol") { closeList(); html += "<ol>"; listType = "ol"; } html += `<li>${inlineMd(ol[1])}</li>`; continue; }
+    const q = line.match(/^>\s?(.*)/);
+    if (q) { closeList(); html += `<blockquote>${inlineMd(q[1])}</blockquote>`; continue; }
+    if (!line.trim()) { closeList(); continue; }
+    closeList(); html += `<p>${inlineMd(line)}</p>`;
+  }
+  if (inCode) html += `<pre><code>${esc(codeBuf.join("\n"))}</code></pre>`;
+  closeList();
+  return html;
+}
+
+/* ---------------- 6. Import (Notesnook ZIP / nnbackup / md) ---------------- */
+const log = (msg) => { const el = $("#importLog"); el.style.display = "block"; el.textContent += msg + "\n"; el.scrollTop = el.scrollHeight; };
+
+async function parseZip(buf) {
+  const dv = new DataView(buf);
+  let eocd = -1;
+  for (let i = buf.byteLength - 22; i >= 0; i--) { if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; } }
+  if (eocd < 0) throw new Error("Not a valid ZIP file");
+  const count = dv.getUint16(eocd + 10, true);
+  let off = dv.getUint32(eocd + 16, true);
+  const entries = [];
+  for (let i = 0; i < count; i++) {
+    if (dv.getUint32(off, true) !== 0x02014b50) break;
+    const method = dv.getUint16(off + 10, true);
+    const csize = dv.getUint32(off + 20, true);
+    const nlen = dv.getUint16(off + 28, true);
+    const elen = dv.getUint16(off + 30, true);
+    const clen = dv.getUint16(off + 32, true);
+    const lho = dv.getUint32(off + 42, true);
+    const name = new TextDecoder().decode(new Uint8Array(buf, off + 46, nlen));
+    entries.push({ name, method, csize, lho });
+    off += 46 + nlen + elen + clen;
+  }
+  const out = [];
+  for (const e of entries) {
+    if (e.name.endsWith("/") || !e.csize) continue;
+    const lnlen = dv.getUint16(e.lho + 26, true);
+    const lelen = dv.getUint16(e.lho + 28, true);
+    const start = e.lho + 30 + lnlen + lelen;
+    const comp = new Uint8Array(buf.slice(start, start + e.csize));
+    let data;
+    if (e.method === 0) data = comp;
+    else if (e.method === 8) {
+      const stream = new Blob([comp]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      data = new Uint8Array(await new Response(stream).arrayBuffer());
+    } else { log("Skipped (unsupported compression): " + e.name); continue; }
+    out.push({ name: e.name, data });
+  }
+  return out;
+}
+function parseFrontmatter(text) {
+  const meta = {};
+  if (text.startsWith("---")) {
+    const end = text.indexOf("\n---", 3);
+    if (end > 0) {
+      const block = text.slice(3, end);
+      let lastKey = null;
+      for (const raw of block.split("\n")) {
+        const kv = raw.match(/^(\w[\w_ -]*):\s*(.*)$/);
+        if (kv) {
+          lastKey = kv[1].trim().toLowerCase();
+          let val = kv[2].trim().replace(/^['"]|['"]$/g, "");
+          if (val.startsWith("[") && val.endsWith("]")) val = val.slice(1, -1).split(",").map(s => s.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean);
+          meta[lastKey] = val === "" ? (meta[lastKey] ?? "") : val;
+        } else {
+          const li = raw.match(/^\s*-\s+(.*)$/);
+          if (li && lastKey) {
+            if (!Array.isArray(meta[lastKey])) meta[lastKey] = meta[lastKey] ? [meta[lastKey]] : [];
+            meta[lastKey].push(li[1].trim().replace(/^['"]|['"]$/g, ""));
+          }
+        }
+      }
+      text = text.slice(end + 4).replace(/^\n+/, "");
+    }
+  }
+  return { meta, body: text };
+}
+function html2md(html) {
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const walk = (node) => {
+      let out = "";
+      node.childNodes.forEach(c => {
+        if (c.nodeType === 3) { out += c.textContent; return; }
+        if (c.nodeType !== 1) return;
+        const tag = c.tagName.toLowerCase();
+        const inner = () => walk(c);
+        switch (tag) {
+          case "h1": out += "\n# " + inner() + "\n"; break;
+          case "h2": out += "\n## " + inner() + "\n"; break;
+          case "h3": case "h4": out += "\n### " + inner() + "\n"; break;
+          case "h5": case "h6": out += "\n#### " + inner() + "\n"; break;
+          case "p": case "div": out += "\n" + inner() + "\n"; break;
+          case "br": out += "\n"; break;
+          case "hr": out += "\n---\n"; break;
+          case "strong": case "b": out += "**" + inner() + "**"; break;
+          case "em": case "i": out += "*" + inner() + "*"; break;
+          case "s": case "del": case "strike": out += "~~" + inner() + "~~"; break;
+          case "code": out += "`" + inner() + "`"; break;
+          case "pre": out += "\n```\n" + c.textContent + "\n```\n"; break;
+          case "blockquote": out += "\n" + inner().trim().split("\n").map(l => "> " + l).join("\n") + "\n"; break;
+          case "a": out += "[" + (inner() || c.href) + "](" + (c.getAttribute("href") || "") + ")"; break;
+          case "img": out += "![" + (c.alt || "") + "](" + (c.getAttribute("src") || "") + ")"; break;
+          case "ul": c.querySelectorAll(":scope > li").forEach(li => {
+            const cb = li.querySelector('input[type=checkbox]');
+            out += "\n- " + (cb ? (cb.checked ? "[x] " : "[ ] ") : "") + walk(li).trim();
+          }); out += "\n"; break;
+          case "ol": { let i = 1; c.querySelectorAll(":scope > li").forEach(li => { out += "\n" + (i++) + ". " + walk(li).trim(); }); out += "\n"; break; }
+          case "li": out += inner(); break;
+          case "input": break;
+          case "table": out += "\n" + c.textContent.trim() + "\n"; break;
+          default: out += inner();
+        }
+      });
+      return out;
+    };
+    return walk(doc.body).replace(/\n{3,}/g, "\n\n").trim();
+  } catch { return html; }
+}
+async function ensureNotebook(title, cache) {
+  if (!title) return null;
+  if (cache.has(title)) return cache.get(title);
+  let nb = S.notebooks.find(b => b.title === title);
+  if (!nb) { nb = { id: uid(), title, createdAt: now() }; S.notebooks.push(nb); await DB.put("notebooks", nb); }
+  cache.set(title, nb.id);
+  return nb.id;
+}
+const parseDate = (v) => { const d = typeof v === "number" ? v : Date.parse(v); return isNaN(d) ? now() : d; };
+
+async function importMarkdownFiles(files, nbCache) {
+  // files: [{path, text}] — folder structure → notebooks, frontmatter → metadata
+  let count = 0;
+  const newNotes = [];
+  for (const f of files) {
+    const { meta, body } = parseFrontmatter(f.text);
+    const parts = f.path.split("/").filter(Boolean);
+    const fname = parts.pop().replace(/\.(md|txt|html?)$/i, "");
+    const nbTitle = parts.length ? parts[parts.length - 1] : null;
+    const isHtml = /\.html?$/i.test(f.path);
+    const tags = Array.isArray(meta.tags) ? meta.tags : (typeof meta.tags === "string" && meta.tags ? meta.tags.split(",").map(s => s.trim()) : []);
+    newNotes.push(newNote({
+      title: meta.title || fname,
+      content: isHtml ? html2md(body) : body,
+      notebookId: await ensureNotebook(nbTitle, nbCache),
+      tags,
+      pinned: meta.pinned === "true" || meta.pinned === true,
+      favorite: meta.favorite === "true" || meta.favorite === true,
+      createdAt: meta.created || meta.created_at || meta.datecreated ? parseDate(meta.created || meta.created_at || meta.datecreated) : now(),
+      updatedAt: meta.updated || meta.updated_at || meta.dateedited ? parseDate(meta.updated || meta.updated_at || meta.dateedited) : now(),
+    }));
+    count++;
+  }
+  S.notes.push(...newNotes);
+  await DB.putMany("notes", newNotes);
+  return count;
+}
+function collectBackupItems(parsed, bucket) {
+  // Accepts any parsed nnbackup JSON shape and collects raw items into bucket[]
+  if (!parsed) return;
+  if (Array.isArray(parsed)) { parsed.forEach(p => collectBackupItems(p, bucket)); return; }
+  if (typeof parsed === "string") { try { collectBackupItems(JSON.parse(parsed), bucket); } catch {} return; }
+  if (typeof parsed !== "object") return;
+  if (parsed.iv && parsed.cipher) throw new Error("ENCRYPTED");
+  if (parsed.type && (parsed.title !== undefined || parsed.data !== undefined || parsed.type === "relation")) {
+    // looks like an item itself
+    if (["note", "notebook", "content", "tiptap", "tag", "relation", "color"].includes(parsed.type)) { bucket.push(parsed); return; }
+  }
+  if (parsed.data !== undefined) { collectBackupItems(parsed.data, bucket); return; }
+  // object map of id -> item
+  const vals = Object.values(parsed);
+  if (vals.length && vals.every(v => v && typeof v === "object")) vals.forEach(v => collectBackupItems(v, bucket));
+}
+async function importNNBackup(items, nbCache) {
+  const notes = items.filter(i => i.type === "note");
+  const contents = items.filter(i => i.type === "content" || i.type === "tiptap");
+  const notebooks = items.filter(i => i.type === "notebook");
+  const tags = items.filter(i => i.type === "tag");
+  const relations = items.filter(i => i.type === "relation");
+  const contentByNote = new Map(), contentById = new Map();
+  contents.forEach(c => { if (c.noteId) contentByNote.set(c.noteId, c); if (c.id) contentById.set(c.id, c); });
+  const nbById = new Map(notebooks.map(b => [b.id, b.title]));
+  const tagById = new Map(tags.map(t => [t.id, t.title]));
+  const relTo = (id, type) => relations.filter(r => (r.toId === id || r.to?.id === id) && (r.fromType === type || r.from?.type === type)).map(r => r.fromId || r.from?.id);
+
+  let count = 0;
+  const newNotes = [];
+  for (const n of notes) {
+    if (n.deleted) continue;
+    const c = contentByNote.get(n.id) || contentById.get(n.contentId);
+    let body = "";
+    if (c && typeof c.data === "string") body = c.data.trim().startsWith("<") ? html2md(c.data) : c.data;
+    else if (n.headline) body = n.headline;
+    // notebook: via relation, or legacy n.notebooks
+    let nbTitle = null;
+    const relNb = relTo(n.id, "notebook")[0];
+    if (relNb && nbById.has(relNb)) nbTitle = nbById.get(relNb);
+    else if (Array.isArray(n.notebooks) && n.notebooks[0] && nbById.has(n.notebooks[0].id)) nbTitle = nbById.get(n.notebooks[0].id);
+    // tags: via relation, or legacy n.tags (string array)
+    let noteTags = relTo(n.id, "tag").map(id => tagById.get(id)).filter(Boolean);
+    if (!noteTags.length && Array.isArray(n.tags)) noteTags = n.tags.filter(t => typeof t === "string");
+    newNotes.push(newNote({
+      title: n.title || "Untitled",
+      content: body,
+      notebookId: await ensureNotebook(nbTitle, nbCache),
+      tags: noteTags,
+      pinned: !!n.pinned, favorite: !!n.favorite,
+      createdAt: n.dateCreated || now(), updatedAt: n.dateEdited || now(),
+    }));
+    count++;
+  }
+  S.notes.push(...newNotes);
+  await DB.putMany("notes", newNotes);
+  return count;
+}
+async function handleImport(fileList) {
+  $("#importLog").textContent = ""; $("#importLog").style.display = "block";
+  const nbCache = new Map();
+  let total = 0;
+  for (const file of fileList) {
+    log("Reading " + file.name + " …");
+    try {
+      const buf = await file.arrayBuffer();
+      const head = new Uint8Array(buf.slice(0, 4));
+      const isZip = head[0] === 0x50 && head[1] === 0x4b;
+      if (isZip) {
+        const entries = await parseZip(buf);
+        const mdFiles = [], jsonTexts = [];
+        for (const e of entries) {
+          const text = new TextDecoder().decode(e.data);
+          if (/\.(md|txt|html?)$/i.test(e.name)) mdFiles.push({ path: e.name, text });
+          else { try { JSON.parse(text); jsonTexts.push(text); } catch {} }
+        }
+        if (mdFiles.length) {
+          const c = await importMarkdownFiles(mdFiles, nbCache);
+          log("  ✓ Imported " + c + " notes from markdown files"); total += c;
+        }
+        if (!mdFiles.length && jsonTexts.length) {
+          const bucket = [];
+          jsonTexts.forEach(t => collectBackupItems(JSON.parse(t), bucket));
+          const c = await importNNBackup(bucket, nbCache);
+          log("  ✓ Imported " + c + " notes from backup data"); total += c;
+        }
+        if (!mdFiles.length && !jsonTexts.length) log("  ✗ No importable files inside this ZIP");
+      } else if (/\.(nnbackup|json)$/i.test(file.name)) {
+        const bucket = [];
+        collectBackupItems(JSON.parse(new TextDecoder().decode(buf)), bucket);
+        const c = await importNNBackup(bucket, nbCache);
+        log("  ✓ Imported " + c + " notes"); total += c;
+      } else if (/\.(md|txt|html?)$/i.test(file.name)) {
+        const c = await importMarkdownFiles([{ path: file.name, text: new TextDecoder().decode(buf) }], nbCache);
+        log("  ✓ Imported " + c + " note"); total += c;
+      } else {
+        log("  ✗ Unsupported file type");
+      }
+    } catch (err) {
+      if (err.message === "ENCRYPTED")
+        log("  ✗ This backup is encrypted. In the official Notesnook app, turn off backup encryption (Settings → Backup & restore) and re-export, or use Settings → Export all notes → Markdown (.zip) instead.");
+      else log("  ✗ Failed: " + err.message);
+    }
+  }
+  log("\nDone. " + total + " notes imported.");
+  if (total) toast(total + " notes imported");
+  renderAll();
+}
+
+/* ---------------- 7. Backup & restore (this app's own format) ---------------- */
+$("#backupBtn").onclick = () => {
+  const payload = { app: "private-notes", version: 1, exportedAt: now(), notebooks: S.notebooks, notes: S.notes };
+  download("notes-backup-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(payload, null, 2), "application/json");
+  toast("Backup downloaded");
+};
+$("#restoreBtn").onclick = () => $("#restoreFile").click();
+$("#restoreFile").onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (data.app !== "private-notes") throw new Error("Not a backup made by this app");
+    const noteIds = new Set(S.notes.map(n => n.id));
+    const nbIds = new Set(S.notebooks.map(n => n.id));
+    const newNbs = (data.notebooks || []).filter(b => !nbIds.has(b.id));
+    const newNotes = (data.notes || []).filter(n => !noteIds.has(n.id));
+    S.notebooks.push(...newNbs); S.notes.push(...newNotes);
+    await DB.putMany("notebooks", newNbs); await DB.putMany("notes", newNotes);
+    toast(`Restored ${newNotes.length} notes, ${newNbs.length} notebooks`);
+    renderAll();
+  } catch (err) { toast("Restore failed: " + err.message); }
+  e.target.value = "";
+};
+$("#importBtn").onclick = () => $("#importFile").click();
+$("#importFile").onchange = (e) => { if (e.target.files.length) handleImport([...e.target.files]); e.target.value = ""; };
+
+/* ---------------- Properties drawer ---------------- */
+function renderProps() {
+  const n = activeNote(); if (!n) return;
+  $("#pPin").classList.toggle("on", n.pinned);
+  $("#pFav").classList.toggle("on", n.favorite);
+  $("#pColors").innerHTML = COLORS.map(c =>
+    `<button data-color="${c.id}" class="${n.color === c.id ? "sel" : ""}" style="background:${c.v}" title="${c.id}"></button>`).join("") +
+    `<button data-color="" class="${!n.color ? "sel" : ""}" style="background:transparent;border:2px dashed var(--text-3)" title="None"></button>`;
+  $("#pColors").querySelectorAll("button").forEach(b => b.onclick = async () => {
+    n.color = b.dataset.color || null; await saveNote(n); renderProps(); renderNav(); renderList();
+  });
+  $("#pNotebook").innerHTML = `<option value="">— No notebook —</option>` +
+    S.notebooks.map(b => `<option value="${b.id}" ${n.notebookId === b.id ? "selected" : ""}>${esc(b.title)}</option>`).join("");
+  $("#pTags").value = (n.tags || []).join(", ");
+  const trashed = n.trashed;
+  $("#pTrash").style.display = trashed ? "none" : "";
+  $("#pRestore").style.display = trashed ? "" : "none";
+  $("#pDeleteForever").style.display = trashed ? "" : "none";
+}
+$("#pPin").onclick = async () => { const n = activeNote(); if (!n) return; n.pinned = !n.pinned; await saveNote(n); renderProps(); renderList(); };
+$("#pFav").onclick = async () => { const n = activeNote(); if (!n) return; n.favorite = !n.favorite; await saveNote(n); renderProps(); renderNav(); renderList(); };
+$("#pNotebook").onchange = async (e) => { const n = activeNote(); if (!n) return; n.notebookId = e.target.value || null; await saveNote(n); renderNav(); renderEditor(); };
+$("#pTags").onchange = async (e) => {
+  const n = activeNote(); if (!n) return;
+  n.tags = e.target.value.split(",").map(s => s.trim().replace(/^#/, "")).filter(Boolean);
+  await saveNote(n); renderNav(); renderList();
+};
+$("#pTrash").onclick = async () => {
+  const n = activeNote(); if (!n) return;
+  n.trashed = true; await saveNote(n);
+  S.activeId = null; closeProps(); closeEditor(); renderAll(); toast("Moved to trash");
+};
+$("#pRestore").onclick = async () => {
+  const n = activeNote(); if (!n) return;
+  n.trashed = false; await saveNote(n); closeProps(); renderAll(); toast("Note restored");
+};
+$("#pDeleteForever").onclick = async () => {
+  const n = activeNote(); if (!n) return;
+  if (!confirm("Delete this note forever? This can't be undone.")) return;
+  await DB.del("notes", n.id);
+  S.notes = S.notes.filter(x => x.id !== n.id);
+  S.activeId = null; closeProps(); closeEditor(); renderAll(); toast("Note deleted");
+};
+function openProps() { renderProps(); $("#props").classList.add("open"); $("#propsScrim").classList.add("show"); }
+function closeProps() { $("#props").classList.remove("open"); $("#propsScrim").classList.remove("show"); }
+$("#propsBtn").onclick = () => activeNote() && openProps();
+$("#propsClose").onclick = closeProps;
+$("#propsScrim").onclick = closeProps;
+
+/* ---------------- Top-level controls ---------------- */
+$("#newNoteBtn").onclick = async () => {
+  const v = S.view;
+  const n = newNote({
+    notebookId: v.type === "notebook" ? v.id : null,
+    tags: v.type === "tag" ? [v.tag] : [],
+    color: v.type === "color" ? v.color : null,
+  });
+  S.notes.push(n); await DB.put("notes", n);
+  if (v.type === "trash" || v.type === "favorites") { S.view = { type: "all" }; }
+  openNote(n.id); renderAll();
+  $("#edTitle").focus();
+};
+$("#addNotebookBtn").onclick = async () => {
+  const title = prompt("Notebook name:");
+  if (!title || !title.trim()) return;
+  const nb = { id: uid(), title: title.trim(), createdAt: now() };
+  S.notebooks.push(nb); await DB.put("notebooks", nb);
+  renderNav(); toast("Notebook created");
+};
+$("#emptyTrashBtn").onclick = async () => {
+  const trashed = S.notes.filter(n => n.trashed);
+  if (!trashed.length) return;
+  if (!confirm(`Delete ${trashed.length} notes forever?`)) return;
+  for (const n of trashed) await DB.del("notes", n.id);
+  S.notes = S.notes.filter(n => !n.trashed);
+  S.activeId = null; renderAll(); toast("Trash emptied");
+};
+$("#searchInput").addEventListener("input", (e) => { S.search = e.target.value; renderList(); });
+$("#backBtn").onclick = closeEditor;
+$("#menuBtn").onclick = () => { $("#nav").classList.add("open"); $("#navScrim").classList.add("show"); };
+
+/* settings modal */
+$("#settingsBtn").onclick = () => { $("#settingsModal").classList.add("show"); closeNav(); };
+document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => $("#" + b.dataset.close).classList.remove("show"));
+document.querySelectorAll(".modal").forEach(m => m.addEventListener("click", e => { if (e.target === m) m.classList.remove("show"); }));
+$("#themeToggle").onclick = async () => {
+  const dark = document.body.dataset.theme !== "dark";
+  document.body.dataset.theme = dark ? "dark" : "light";
+  $("#themeToggle").classList.toggle("on", dark);
+  await DB.setMeta("theme", dark ? "dark" : "light");
+};
+
+/* nav scrim for mobile */
+const navScrim = document.createElement("div");
+navScrim.id = "navScrim"; navScrim.className = "scrim nav-only";
+navScrim.onclick = closeNav;
+document.body.appendChild(navScrim);
+
+/* keyboard shortcuts */
+document.addEventListener("keydown", (e) => {
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key === "n") { e.preventDefault(); $("#newNoteBtn").click(); }
+  if (mod && e.key === "k") { e.preventDefault(); $("#searchInput").focus(); }
+  if (mod && e.key === "e") { e.preventDefault(); $("#previewBtn").click(); }
+});
+
+/* ---------------- 8. Boot ---------------- */
+(async function boot() {
+  await DB.open();
+  S.notes = await DB.getAll("notes");
+  S.notebooks = await DB.getAll("notebooks");
+  const theme = await DB.getMeta("theme");
+  if (theme === "dark" || (theme === null && matchMedia("(prefers-color-scheme: dark)").matches)) {
+    document.body.dataset.theme = "dark"; $("#themeToggle").classList.add("on");
+  }
+  if (!S.notes.length) {
+    const welcome = newNote({
+      title: "Welcome to your private notes",
+      content: "This app is **local-first**: every note lives in this device's browser storage and is never uploaded anywhere.\n\n## Getting started\n\n- [ ] Tap **+** to create a note\n- [ ] Open **Settings → Import** to bring in your Notesnook notes\n- [ ] Use the **⋮ properties** button to pin, color, tag, or file a note into a notebook\n\n## Importing from Notesnook\n\n1. In the official app: *Settings → Export all notes → Markdown* (gives you a `.zip`)\n2. Here: *Settings → Import from Notesnook* and pick that zip\n3. Notebooks, tags, and dates come along automatically\n\n> Tip: press `Ctrl/Cmd + E` to toggle the markdown preview, `Ctrl/Cmd + N` for a new note.\n\n## Moving notes between devices\n\nThere's no sync server — use *Settings → Back up* on one device and *Restore* on the other.",
+      pinned: true,
+    });
+    S.notes.push(welcome); await DB.put("notes", welcome);
+  }
+  renderAll();
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
