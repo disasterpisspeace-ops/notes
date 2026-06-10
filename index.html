@@ -118,19 +118,19 @@ input,textarea,select{font:inherit;color:inherit}
 .toolbar button:hover{background:var(--bg-hover);color:var(--text)}
 .toolbar .sep{width:1px;background:var(--border);margin:4px 4px;flex:none}
 #edBody{flex:1;display:flex;min-height:0}
-#edText{flex:1;border:none;outline:none;background:none;resize:none;padding:14px 20px 40px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;line-height:1.7;-webkit-overflow-scrolling:touch}
-#edPreview{flex:1;overflow-y:auto;padding:14px 20px 40px;display:none;line-height:1.7;font-size:15px}
-#edPreview h1,#edPreview h2,#edPreview h3{margin:14px 0 6px}
-#edPreview p{margin:8px 0}
-#edPreview ul,#edPreview ol{margin:8px 0 8px 22px}
-#edPreview code{background:var(--bg-hover);padding:1px 5px;border-radius:4px;font-size:.9em;font-family:ui-monospace,Menlo,Consolas,monospace}
-#edPreview pre{background:var(--bg-hover);padding:12px;border-radius:8px;overflow-x:auto;margin:10px 0}
-#edPreview pre code{background:none;padding:0}
-#edPreview blockquote{border-left:3px solid var(--accent);padding:2px 12px;color:var(--text-2);margin:10px 0}
-#edPreview a{color:var(--accent)}
-#edPreview img{max-width:100%;border-radius:8px}
-#edPreview hr{border:none;border-top:1px solid var(--border);margin:16px 0}
-#edPreview input[type=checkbox]{accent-color:var(--accent);margin-right:6px}
+#edText{flex:1;border:none;outline:none;background:none;resize:none;padding:14px 20px 40px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;line-height:1.7;-webkit-overflow-scrolling:touch;display:none}
+#edRich{flex:1;overflow-y:auto;padding:14px 20px 60px;line-height:1.7;font-size:15px;outline:none;-webkit-overflow-scrolling:touch;word-break:break-word}
+.rendered h1,.rendered h2,.rendered h3{margin:14px 0 6px}
+.rendered p{margin:8px 0}
+.rendered ul,.rendered ol{margin:8px 0 8px 22px}
+.rendered code{background:var(--bg-hover);padding:1px 5px;border-radius:4px;font-size:.9em;font-family:ui-monospace,Menlo,Consolas,monospace}
+.rendered pre{background:var(--bg-hover);padding:12px;border-radius:8px;overflow-x:auto;margin:10px 0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em}
+.rendered pre code{background:none;padding:0}
+.rendered blockquote{border-left:3px solid var(--accent);padding:2px 12px;color:var(--text-2);margin:10px 0}
+.rendered a{color:var(--accent)}
+.rendered img{max-width:100%;border-radius:8px}
+.rendered hr{border:none;border-top:1px solid var(--border);margin:16px 0}
+.rendered input[type=checkbox]{accent-color:var(--accent);margin-right:6px}
 .ed-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-3);gap:10px}
 .ed-empty svg{width:54px;height:54px;opacity:.4}
 #savedBadge{font-size:11px;color:var(--text-3);transition:opacity .4s;opacity:0}
@@ -244,7 +244,7 @@ input,textarea,select{font:inherit;color:inherit}
       <button class="icon-btn" id="backBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
       <span id="savedBadge">Saved</span>
       <div class="spacer"></div>
-      <button class="icon-btn" id="previewBtn" title="Toggle preview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      <button class="icon-btn" id="sourceBtn" title="Edit markdown source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></button>
       <button class="icon-btn" id="exportNoteBtn" title="Export note (.md)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
       <button class="icon-btn" id="propsBtn" title="Note properties"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="5" r="1.5" fill="currentColor"/><circle cx="12" cy="19" r="1.5" fill="currentColor"/></svg></button>
     </div>
