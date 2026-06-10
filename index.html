@@ -698,36 +698,67 @@ async function inflateRaw(comp, usize) {
 }
 async function parseZip(buf) {
   const dv = new DataView(buf);
+  const u64 = (o) => Number(dv.getBigUint64(o, true));
   let eocd = -1;
   for (let i = buf.byteLength - 22; i >= 0; i--) { if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; } }
   if (eocd < 0) throw new Error("Not a valid ZIP file");
-  const count = dv.getUint16(eocd + 10, true);
+  let count = dv.getUint16(eocd + 10, true);
   let off = dv.getUint32(eocd + 16, true);
+  // ZIP64: streamed zips (like Notesnook exports) mark fields as 0xFFFFFFFF and
+  // store real values in the ZIP64 end-of-central-directory record + extra fields.
+  if (count === 0xFFFF || off === 0xFFFFFFFF) {
+    for (let i = eocd - 20; i >= 0; i--) {
+      if (dv.getUint32(i, true) === 0x07064b50) {            // ZIP64 EOCD locator
+        const z64 = u64(i + 8);
+        if (z64 + 56 <= buf.byteLength && dv.getUint32(z64, true) === 0x06064b50) {
+          count = u64(z64 + 32);
+          off = u64(z64 + 48);
+        }
+        break;
+      }
+    }
+  }
   const entries = [];
   for (let i = 0; i < count; i++) {
-    if (dv.getUint32(off, true) !== 0x02014b50) break;
+    if (off + 46 > buf.byteLength || dv.getUint32(off, true) !== 0x02014b50) break;
     const method = dv.getUint16(off + 10, true);
-    const csize = dv.getUint32(off + 20, true);
-    const usize = dv.getUint32(off + 24, true);
+    let csize = dv.getUint32(off + 20, true);
+    let usize = dv.getUint32(off + 24, true);
     const nlen = dv.getUint16(off + 28, true);
     const elen = dv.getUint16(off + 30, true);
     const clen = dv.getUint16(off + 32, true);
-    const lho = dv.getUint32(off + 42, true);
+    let lho = dv.getUint32(off + 42, true);
     const name = new TextDecoder().decode(new Uint8Array(buf, off + 46, nlen));
+    // ZIP64 extra field (id 0x0001): holds 8-byte values for whichever of
+    // usize / csize / lho were marked 0xFFFFFFFF, in that order.
+    if (csize === 0xFFFFFFFF || usize === 0xFFFFFFFF || lho === 0xFFFFFFFF) {
+      let p = off + 46 + nlen; const end = p + elen;
+      while (p + 4 <= end) {
+        const id = dv.getUint16(p, true), sz = dv.getUint16(p + 2, true);
+        if (id === 0x0001) {
+          let q = p + 4;
+          if (usize === 0xFFFFFFFF && q + 8 <= end) { usize = u64(q); q += 8; }
+          if (csize === 0xFFFFFFFF && q + 8 <= end) { csize = u64(q); q += 8; }
+          if (lho === 0xFFFFFFFF && q + 8 <= end) { lho = u64(q); q += 8; }
+          break;
+        }
+        p += 4 + sz;
+      }
+    }
     entries.push({ name, method, csize, usize, lho });
     off += 46 + nlen + elen + clen;
   }
   const out = [];
   for (const e of entries) {
     if (e.name.endsWith("/") || !e.csize) continue;
-    if (e.csize === 0xFFFFFFFF || e.usize === 0xFFFFFFFF) { log("Skipped (ZIP64 entry too large): " + e.name); continue; }
+    if (e.csize === 0xFFFFFFFF || e.lho === 0xFFFFFFFF || e.lho + 30 > buf.byteLength) { log("Skipped (unreadable entry): " + e.name); continue; }
     try {
       const lnlen = dv.getUint16(e.lho + 26, true);
       const lelen = dv.getUint16(e.lho + 28, true);
       const start = e.lho + 30 + lnlen + lelen;
       const comp = new Uint8Array(buf.slice(start, start + e.csize));
       let data;
-      if (e.method === 0) data = comp.subarray(0, e.usize || comp.length);
+      if (e.method === 0) data = comp.subarray(0, e.usize && e.usize !== 0xFFFFFFFF ? e.usize : comp.length);
       else if (e.method === 8) data = await inflateRaw(comp, e.usize);
       else { log("Skipped (unsupported compression): " + e.name); continue; }
       out.push({ name: e.name, data });

@@ -1,6 +1,6 @@
 /* Service worker — caches the app shell so it works fully offline.
    Bump CACHE version whenever you change index.html so devices pick up the update. */
-const CACHE = "private-notes-v2";
+const CACHE = "private-notes-v3";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (e) => {
