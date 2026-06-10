@@ -669,6 +669,33 @@ function md2html(src) {
 /* ---------------- 6. Import (Notesnook ZIP / nnbackup / md) ---------------- */
 const log = (msg) => { const el = $("#importLog"); el.style.display = "block"; el.textContent += msg + "\n"; el.scrollTop = el.scrollHeight; };
 
+async function inflateRaw(comp, usize) {
+  // Tolerant raw-deflate: Safari's DecompressionStream throws "extra bytes past
+  // the end" if the entry has any padding after the deflate stream. We stream the
+  // data in, collect output, and accept the result if it matches the expected
+  // uncompressed size — only rethrowing when the output is actually wrong.
+  const ds = new DecompressionStream("deflate-raw");
+  const writer = ds.writable.getWriter();
+  const reader = ds.readable.getReader();
+  const chunks = []; let got = 0; let err = null;
+  const reading = (async () => {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value); got += value.length;
+    }
+  })();
+  try {
+    const CH = 65536;
+    for (let i = 0; i < comp.length; i += CH) await writer.write(comp.subarray(i, Math.min(i + CH, comp.length)));
+    await writer.close();
+  } catch (e) { err = e; }
+  try { await reading; } catch (e) { if (!err) err = e; }
+  const out = new Uint8Array(got);
+  let o = 0; for (const c of chunks) { out.set(c, o); o += c.length; }
+  if (err && got !== usize) throw err;
+  return out;
+}
 async function parseZip(buf) {
   const dv = new DataView(buf);
   let eocd = -1;
@@ -681,29 +708,32 @@ async function parseZip(buf) {
     if (dv.getUint32(off, true) !== 0x02014b50) break;
     const method = dv.getUint16(off + 10, true);
     const csize = dv.getUint32(off + 20, true);
+    const usize = dv.getUint32(off + 24, true);
     const nlen = dv.getUint16(off + 28, true);
     const elen = dv.getUint16(off + 30, true);
     const clen = dv.getUint16(off + 32, true);
     const lho = dv.getUint32(off + 42, true);
     const name = new TextDecoder().decode(new Uint8Array(buf, off + 46, nlen));
-    entries.push({ name, method, csize, lho });
+    entries.push({ name, method, csize, usize, lho });
     off += 46 + nlen + elen + clen;
   }
   const out = [];
   for (const e of entries) {
     if (e.name.endsWith("/") || !e.csize) continue;
-    const lnlen = dv.getUint16(e.lho + 26, true);
-    const lelen = dv.getUint16(e.lho + 28, true);
-    const start = e.lho + 30 + lnlen + lelen;
-    const comp = new Uint8Array(buf.slice(start, start + e.csize));
-    let data;
-    if (e.method === 0) data = comp;
-    else if (e.method === 8) {
-      const stream = new Blob([comp]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-      data = new Uint8Array(await new Response(stream).arrayBuffer());
-    } else { log("Skipped (unsupported compression): " + e.name); continue; }
-    out.push({ name: e.name, data });
+    if (e.csize === 0xFFFFFFFF || e.usize === 0xFFFFFFFF) { log("Skipped (ZIP64 entry too large): " + e.name); continue; }
+    try {
+      const lnlen = dv.getUint16(e.lho + 26, true);
+      const lelen = dv.getUint16(e.lho + 28, true);
+      const start = e.lho + 30 + lnlen + lelen;
+      const comp = new Uint8Array(buf.slice(start, start + e.csize));
+      let data;
+      if (e.method === 0) data = comp.subarray(0, e.usize || comp.length);
+      else if (e.method === 8) data = await inflateRaw(comp, e.usize);
+      else { log("Skipped (unsupported compression): " + e.name); continue; }
+      out.push({ name: e.name, data });
+    } catch (err) { log("Skipped (couldn't read): " + e.name + " — " + err.message); }
   }
+  if (!out.length && entries.length) throw new Error("Couldn't read any files in this ZIP");
   return out;
 }
 function parseFrontmatter(text) {
